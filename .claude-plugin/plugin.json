@@ -1,0 +1,19 @@
+{
+  "name": "project-agents",
+  "version": "1.0.0",
+  "description": "Scaffolds a tiered team of Claude Code subagents (Opus implementer for risk paths, Sonnet implementer bound to a path list, read-only reviewers, architect, Haiku CI watcher), each pinning model and effort, plus CLAUDE.md rules and a guard.",
+  "author": {
+    "name": "Voyteck",
+    "url": "https://github.com/Voyteck"
+  },
+  "homepage": "https://github.com/Voyteck/claude-skill-project-agents",
+  "repository": "https://github.com/Voyteck/claude-skill-project-agents",
+  "license": "MIT",
+  "keywords": [
+    "subagents",
+    "agents",
+    "model-selection",
+    "cost",
+    "code-review"
+  ]
+}

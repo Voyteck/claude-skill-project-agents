@@ -1,0 +1,11 @@
+{
+  "implementer": "implementer",
+  "implementer-simple": "implementer-simple",
+  "reviewer-security": "reviewer-security",
+  "reviewer-mechanical": "reviewer-mechanical",
+  "reviewer-deploy": "reviewer-deploy",
+  "architect": "architect",
+  "architect-deep": null,
+  "ci-watcher": "ci-watcher",
+  "architecture_model": null
+}
