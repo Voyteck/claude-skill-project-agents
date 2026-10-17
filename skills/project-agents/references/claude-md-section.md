@@ -14,6 +14,12 @@ Append to the project's root `CLAUDE.md` (create it if missing).
 1. **Context budget.** After closing a task (merge, deploy, report) a session runs
    `/compact` or starts fresh; a main session stays under ~250k tokens of context. Heavy
    reading goes to subagents and only conclusions come back (findings, not file dumps).
+   Code search - locating files, symbols, call sites - goes to `Explore` (Haiku,
+   `path:line-range` back) instead of files read into the caller's context, for main
+   sessions and implementing agents alike; an implementing agent has no `Agent` tool, so
+   its coordinator runs `Explore` before the brief and puts the locations in its "Scope",
+   and inside the run the agent greps and reads line ranges, not whole files. `Explore`
+   locates; it proves nothing - a review reads the code itself.
    The prompt cache lives about an hour: before a wait of over ~50 min (CI, a review) a
    session above ~150k runs `/compact` or hands the wait to `<<NAME_CI_WATCHER>>`, and a
    session whose task is closed ends instead of idling.
@@ -21,13 +27,15 @@ Append to the project's root `CLAUDE.md` (create it if missing).
    list - <<RISK_SUMMARY>>. Sonnet (`<<NAME_IMPLEMENTER_SIMPLE>>`): simple implementation
    from its path list in `.claude/agents/<<NAME_IMPLEMENTER_SIMPLE>>.md` - the list
    decides, not a judgement call; plus lint/format runs, docs-vs-code checks and test runs
-   (`<<NAME_REVIEWER_MECHANICAL>>`). Haiku: watching one CI run (`<<NAME_CI_WATCHER>>`).
+   (`<<NAME_REVIEWER_MECHANICAL>>`). Haiku: code search (`Explore`) and watching one CI run (`<<NAME_CI_WATCHER>>`).
    `<<ARCHITECT_MODEL>>`: architectural analysis (`<<NAME_ARCHITECT>>`), never
    implementation. The coordinating session runs on Opus. When unsure, the risk list
    decides: one path on it -> Opus. Before briefing `<<NAME_IMPLEMENTER>>`, check the
    change's paths against `<<NAME_IMPLEMENTER_SIMPLE>>`'s list. An `Agent` call that names
    no project agent passes `model: sonnet` unless the brief says which risk path needs
-   Opus. An implementing agent signs each commit and PR with `Agent: <name>`; re-check the
+   Opus. `Explore` is a project agent on Haiku (`.claude/agents/Explore.md`) that replaces
+   the built-in of that name, so an `Explore` call needs no `model`; a built-in agent with
+   no project file of its name (e.g. `Plan`) still gets `model: sonnet`. An implementing agent signs each commit and PR with `Agent: <name>`; re-check the
    Sonnet tier after its first ten PRs (rework and review findings vs
    `<<NAME_IMPLEMENTER>>`).
 3. **Review levels.** ONE full review per PR, before merge, scoped by risk: a risk-path PR
@@ -72,6 +80,7 @@ The rules for using them: `CLAUDE.md` -> "Working with Claude Code".
 | `<<NAME_REVIEWER_DEPLOY>>` | opus / high | pre-deploy review of the deploy path and cross-PR interactions (read-only) |
 | `<<NAME_ARCHITECT>>` | <<ARCHITECT_MODEL>> / high | design options and trade-offs; recommends, never implements (read-only) |
 | `<<NAME_CI_WATCHER>>` | haiku / low | waits for one CI run and reports failed steps |
+| `Explore` | haiku / low | code search: returns `path:line-range` locations with one-line notes instead of files; replaces the built-in `Explore`, so a default call runs on Haiku too; a locator, not proof (read-only) |
 
 ### A subagent brief
 

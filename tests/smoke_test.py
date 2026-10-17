@@ -4,7 +4,8 @@ Fills every `<<MARKER>>` in `assets/agents/` the way the skill tells Claude to (
 from a role map, the deep architect assembled from its head plus the architect's body),
 then runs `scripts/check_agents.py` on the result and expects `OK`. It also expects the
 guard to FAIL on the raw templates and on a filled set that has lost a property the
-guard exists for, so a guard that stopped checking cannot pass here.
+guard exists for, so a guard that stopped checking cannot pass here. A role map written
+before the `explore` role existed must still pass.
 
     python3 tests/smoke_test.py
 """
@@ -33,6 +34,7 @@ ROLES = {
     "architect": "architect",
     "architect-deep": "architect-deep",
     "ci-watcher": "ci-watcher",
+    "explore": "Explore",
     "architecture_model": "fable",
 }
 VALUES = {
@@ -62,11 +64,11 @@ def _body(text: str) -> str:
 
 
 def _write_filled(target: Path) -> None:
-    """Writes the filled agent set and its role map into `target`."""
+    """Writes the filled agent set and its role map into `target`, each file under its name."""
     for template in TEMPLATES.glob("*.md"):
         if template.name.endswith(".head.md"):
             continue
-        (target / template.name).write_text(_fill(template.read_text()))
+        (target / f"{ROLES[template.stem]}.md").write_text(_fill(template.read_text()))
     head = _fill((TEMPLATES / "architect-deep.head.md").read_text())
     (target / "architect-deep.md").write_text(head + _body((target / "architect.md").read_text()))
     (target / "roles.json").write_text(json.dumps(ROLES))
@@ -110,6 +112,31 @@ def main() -> int:
             failures.append("a reviewer with Edit/Write should fail the guard")
         reviewer.write_text(original)
 
+        # The locator must keep the built-in's name and its three read-only tools.
+        explore = agents / "Explore.md"
+        original = explore.read_text()
+        explore.write_text(
+            re.sub(r"^tools: .*$", "tools: Read, Glob, Grep, Bash", original, flags=re.M)
+        )
+        if _check(agents).returncode == 0:
+            failures.append("an Explore with Bash should fail the guard")
+        explore.write_text(original)
+        renamed = agents / "explore-haiku.md"
+        renamed.write_text(original.replace("name: Explore", "name: explore-haiku"))
+        explore.unlink()
+        (agents / "roles.json").write_text(json.dumps({**ROLES, "explore": "explore-haiku"}))
+        if _check(agents).returncode == 0:
+            failures.append("an explore role not named Explore should fail the guard")
+        renamed.unlink()
+
+        # A role map from before the explore role, with no Explore.md, still passes.
+        (agents / "roles.json").write_text(
+            json.dumps({k: v for k, v in ROLES.items() if k != "explore"})
+        )
+        before = _check(agents)
+        if before.returncode != 0:
+            failures.append(f"a role map without explore should still pass:\n{before.stdout}")
+
     with tempfile.TemporaryDirectory() as tmp:
         raw = Path(tmp)
         for template in TEMPLATES.glob("*.md"):
@@ -121,7 +148,10 @@ def main() -> int:
     for failure in failures:
         print(f"FAIL: {failure}")
     if not failures:
-        print("smoke test OK: filled set passes; raw templates and a writing reviewer fail")
+        print(
+            "smoke test OK: filled set and a pre-explore role map pass; raw templates, "
+            "a writing reviewer and a renamed or shell-wielding Explore fail"
+        )
     return 1 if failures else 0
 
 

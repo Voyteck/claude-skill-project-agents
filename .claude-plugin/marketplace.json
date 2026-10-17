@@ -1,6 +1,6 @@
 {
   "name": "voyteck-project-agents",
-  "description": "Scaffolds a tiered team of Claude Code subagents (Opus implementer for risk paths, Sonnet implementer bound to a path list, read-only reviewers, architect, Haiku CI watcher), each pinning model and effort, plus CLAUDE.md rules and a guard.",
+  "description": "Scaffolds a tiered team of Claude Code subagents (Opus implementer for risk paths, Sonnet implementer bound to a path list, read-only reviewers, architect, Haiku CI watcher, Haiku Explore locator that replaces the built-in), each pinning model and effort, plus CLAUDE.md rules and a guard.",
   "owner": {
     "name": "Voyteck",
     "url": "https://github.com/Voyteck"
@@ -9,7 +9,7 @@
     {
       "name": "project-agents",
       "source": "./",
-      "description": "Scaffolds a tiered team of Claude Code subagents (Opus implementer for risk paths, Sonnet implementer bound to a path list, read-only reviewers, architect, Haiku CI watcher), each pinning model and effort, plus CLAUDE.md rules and a guard."
+      "description": "Scaffolds a tiered team of Claude Code subagents (Opus implementer for risk paths, Sonnet implementer bound to a path list, read-only reviewers, architect, Haiku CI watcher, Haiku Explore locator that replaces the built-in), each pinning model and effort, plus CLAUDE.md rules and a guard."
     }
   ]
 }

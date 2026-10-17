@@ -16,6 +16,9 @@ Each check answers a failure seen in practice:
   `Agent: <name>` trailer - without it nobody can tell which tier wrote a commit;
 * the simple implementer names every risk marker - a cheap-tier writer that stops naming
   the risk list can implement on a risk path unnoticed;
+* the code locator keeps the name `Explore` and only Read, Glob and Grep - under another
+  name it no longer replaces the built-in `Explore`, whose calls then run on the caller's
+  model again, and a locator with a shell can change the tree;
 * the deep architect variant keeps its base's tools, model and body - it differs only in
   effort and an opening paragraph;
 * no `<<MARKER>>` from the templates is left unfilled.
@@ -31,12 +34,15 @@ Each check answers a failure seen in practice:
       "architect": "architect",
       "architect-deep": null,
       "ci-watcher": "ci-watcher",
+      "explore": "Explore",
       "architecture_model": null
     }
 
 `architecture_model` names the model the architect roles use that implementers must not;
 leave it `null` when the architect runs on the same model as the implementer (then the
-read-only tool list is what keeps the architect from implementing).
+read-only tool list is what keeps the architect from implementing). `explore` may only
+be `Explore` or `null`; a map without it (written before the role existed) leaves it
+unchecked.
 
 Usage:
     python check_agents.py [AGENTS_DIR] [--roles ROLES_JSON] [--risk-marker TEXT ...]
@@ -63,6 +69,7 @@ ROLES = (
     "architect",
     "architect-deep",
     "ci-watcher",
+    "explore",
 )
 #: Roles that may never write to the tree.
 READ_ONLY_ROLES = (
@@ -72,6 +79,7 @@ READ_ONLY_ROLES = (
     "architect",
     "architect-deep",
     "ci-watcher",
+    "explore",
 )
 #: Roles that implement: signed commits, never on the architecture model.
 IMPLEMENTER_ROLES = ("implementer", "implementer-simple")
@@ -80,8 +88,15 @@ SIMPLE_IMPLEMENTER_ROLE = "implementer-simple"
 #: Effort variant role -> its base role; the variant differs by effort and an opening
 #: paragraph only.
 EFFORT_VARIANTS = {"architect-deep": "architect"}
-#: Roles whose file may be absent when `roles.json` does not name them explicitly.
-OPTIONAL_ROLES = ("architect-deep",)
+#: Roles whose file may be absent when `roles.json` does not name them explicitly;
+#: `explore` is one so that a role map written before it existed still passes.
+OPTIONAL_ROLES = ("architect-deep", "explore")
+#: Roles whose agent name is fixed: the code locator overrides the built-in agent of that
+#: name, which it does only under the built-in's exact name.
+FIXED_NAMES = {"explore": "Explore"}
+#: The code locator's role and the only tools it may list.
+LOCATOR_ROLE = "explore"
+LOCATOR_TOOLS = frozenset({"Read", "Glob", "Grep"})
 #: The `roles.json` key that is a setting, not a role.
 ARCHITECTURE_MODEL_KEY = "architecture_model"
 ROLES_FILE = "roles.json"
@@ -152,7 +167,7 @@ def load_roles(path: Path) -> tuple[dict[str, str | None], set[str], str | None,
         roles the file names explicitly; the architecture model (`None` = not set); and
         the problems found in the file itself.
     """
-    names: dict[str, str | None] = {role: role for role in ROLES}
+    names: dict[str, str | None] = {role: FIXED_NAMES.get(role, role) for role in ROLES}
     if not path.is_file():
         return names, set(), None, []
     try:
@@ -177,7 +192,14 @@ def load_roles(path: Path) -> tuple[dict[str, str | None], set[str], str | None,
         if name is not None and (not isinstance(name, str) or not name.strip()):
             problems.append(f"{path.name}: role `{role}` must map to an agent name or null")
             continue
-        names[role] = name.strip() if isinstance(name, str) else None
+        name = name.strip() if isinstance(name, str) else None
+        if name is not None and role in FIXED_NAMES and name != FIXED_NAMES[role]:
+            problems.append(
+                f"{path.name}: role `{role}` must be named `{FIXED_NAMES[role]}` (or null): "
+                f"under `{name}` it does not replace the built-in agent"
+            )
+            continue
+        names[role] = name
         explicit.add(role)
     taken: dict[str, str] = {}
     for role, name in names.items():
@@ -243,6 +265,12 @@ def _check_role(
             problems.append(f"{label}: a read-only role must list its tools (none = ALL tools)")
         elif tool_set & WRITING_TOOLS:
             problems.append(f"{label}: a read-only role lists {sorted(tool_set & WRITING_TOOLS)}")
+
+    if role == LOCATOR_ROLE and tool_set - LOCATOR_TOOLS:
+        problems.append(
+            f"{label}: the code locator may list only {sorted(LOCATOR_TOOLS)}, "
+            f"not {sorted(tool_set - LOCATOR_TOOLS)}"
+        )
 
     if role in IMPLEMENTER_ROLES:
         model = frontmatter(path).get("model")

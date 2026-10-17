@@ -1,6 +1,6 @@
 ---
 name: project-agents
-description: Sets up a tiered team of Claude Code subagents in a project's `.claude/agents/` - an Opus implementer for risky paths, a Sonnet implementer bound to an explicit path list, read-only security, mechanical and deploy reviewers, an architect on the strongest reasoning model, and a Haiku CI watcher - each pinning its model and effort, fitted to the project's real commands, risk paths and deploy path, plus the matching "Working with Claude Code" rules in CLAUDE.md and a guard script that keeps the agent files honest. Use it whenever someone starts or onboards a repository for Claude Code, asks for agents, subagents, reviewers, a model-per-task split or lower token cost, notices subagents running on the wrong model, or wants an existing `.claude/agents/` set audited or brought in line - even if they never say "skill". Polish triggers too - "skonfiguruj agentów", "dodaj agentów do projektu", "podział modeli na zadania".
+description: Sets up a tiered team of Claude Code subagents in a project's `.claude/agents/` - an Opus implementer for risky paths, a Sonnet implementer bound to an explicit path list, read-only security, mechanical and deploy reviewers, an architect on the strongest reasoning model, a Haiku CI watcher and a Haiku code locator that replaces the built-in `Explore` - each pinning its model and effort, fitted to the project's real commands, risk paths and deploy path, plus the matching "Working with Claude Code" rules in CLAUDE.md and a guard script that keeps the agent files honest. Use it whenever someone starts or onboards a repository for Claude Code, asks for agents, subagents, reviewers, a model-per-task split or lower token cost, notices subagents running on the wrong model, or wants an existing `.claude/agents/` set audited or brought in line - even if they never say "skill". Polish triggers too - "skonfiguruj agentów", "dodaj agentów do projektu", "podział modeli na zadania".
 ---
 
 # Project agents
@@ -24,6 +24,7 @@ the careful tier, and reviewers that cannot touch what they review.
 | `architect` | strongest reasoning model / high | read-only | design options and trade-offs; recommends, never implements |
 | `architect-deep` | same model as `architect` / xhigh | read-only | OPTIONAL: the architect at more effort, for GO/NO-GO reviews around irreversible steps |
 | `ci-watcher` | haiku / low | Bash only | waits on one CI run and reports the failed steps |
+| `explore` (always `Explore`) | haiku / low | Read, Glob, Grep | code search: returns `path:line-range` locations, not files; replaces the built-in `Explore` |
 
 "Strongest reasoning model" means the strongest one the user's plan offers (e.g. `opus`,
 or a newer top model alias). Templates live in `assets/agents/`, one per role.
@@ -32,12 +33,22 @@ Drop an agent the project cannot use rather than filling it with fiction: no dep
 -> no `reviewer-deploy`; no GitHub Actions -> adapt `ci-watcher` to the CI the project
 has, or drop it. Say what you dropped and why.
 
+**`Explore` overrides a built-in on purpose.** Claude Code's built-in `Explore` inherits a
+model unless the caller passes one, so code search - a large share of all subagent calls -
+runs on whatever the session runs on. A project agent with the built-in's exact name
+replaces it: every `Explore` call, the default ones included, then runs on Haiku and
+returns locations instead of file contents. That is why this role is the one name the
+role map cannot change, and why its file is `Explore.md` (the name must equal the file's
+stem). Its answer is a locator, not proof: a reviewer that must prove a safety claim reads
+the code itself.
+
 ## Names: one role -> name map
 
 The default names are the roles themselves, in English. The user may want their own (for
 example, one owner names them in Polish: `programista`, `programista-prosty`,
 `przeglad-bezpieczenstwa`, `przeglad-mechaniczny`, `przeglad-wdrozenia`, `architekt`,
-`architekt-przeglad`, `obserwator-ci`).
+`architekt-przeglad`, `obserwator-ci`). The `explore` role is the exception: it is always
+`Explore`, the built-in's name, or it stops replacing the built-in.
 
 - **Ask once**, in the same message as the risk and simple lists (step 2): "The agents get
   English role names by default (`implementer`, `reviewer-security`, ...). Keep them, or
@@ -48,9 +59,9 @@ example, one owner names them in Polish: `programista`, `programista-prosty`,
   (see "Adapting the models").
 - **Apply it everywhere**, consistently: the file names (`.claude/agents/<name>.md`), the
   `name:` fields, every `<<NAME_...>>` marker (the templates cross-reference each other),
-  the `Agent: <name>` trailers, the CLAUDE.md section and the CONTRIBUTING table. The guard
-  reads `roles.json`, so it checks roles whatever they are called; a rename is a change of
-  the file name and of `roles.json` together.
+  the `Agent: <name>` trailers, the CLAUDE.md section and the CONTRIBUTING table
+  (`Explore` stays `Explore`). The guard reads `roles.json`, so it checks roles whatever
+  they are called; a rename is a change of the file name and of `roles.json` together.
 
 ## Workflow
 
@@ -121,8 +132,9 @@ python <this-skill>/scripts/check_agents.py <repo>/.claude/agents --risk-marker 
 It reads `<repo>/.claude/agents/roles.json` (or `--roles <file>`), and fails when:
 
 - an agent does not pin `model` and `effort`, or its `name:` differs from its file name;
-- a read-only role (reviewers, architects, CI watcher) lists no tools or lists
+- a read-only role (reviewers, architects, CI watcher, `Explore`) lists no tools or lists
   Edit/Write/NotebookEdit;
+- the `explore` role is not named `Explore`, or lists a tool beyond Read, Glob and Grep;
 - an implementer role runs on the `architecture_model` or does not require its
   `Agent: <name>` trailer;
 - the simple implementer does not contain each risk marker;
@@ -147,7 +159,8 @@ Do not commit unless asked; if asked, stage explicit paths only.
 ## Adapting the models
 
 The tiers are a policy, not a law. Use model aliases the user's plan offers and substitute
-when one is missing (no Haiku -> `sonnet` for the CI watcher), saying so in the report.
+when one is missing (no Haiku -> `sonnet` for the CI watcher and for `Explore`, at the
+same `low` effort), saying so in the report.
 
 - **The architect** runs on the strongest reasoning model available. If that is a model
   above the implementers' (a newer top alias), set `architecture_model` in `roles.json` to

@@ -9,7 +9,7 @@ row allows. Never invent a command or path.
 
 | marker | what it is | where it comes from |
 |---|---|---|
-| `<<NAME_IMPLEMENTER>>`, `<<NAME_IMPLEMENTER_SIMPLE>>`, `<<NAME_REVIEWER_SECURITY>>`, `<<NAME_REVIEWER_MECHANICAL>>`, `<<NAME_REVIEWER_DEPLOY>>`, `<<NAME_ARCHITECT>>`, `<<NAME_ARCHITECT_DEEP>>`, `<<NAME_CI_WATCHER>>` | the agent name chosen for each role | the role -> name map you wrote to `.claude/agents/roles.json` (default: the role itself, e.g. `implementer`). The templates cross-reference each other, so a marker for a role you dropped may still appear in another agent's body: replace it with the name of the agent that takes that work, or rephrase the sentence |
+| `<<NAME_IMPLEMENTER>>`, `<<NAME_IMPLEMENTER_SIMPLE>>`, `<<NAME_REVIEWER_SECURITY>>`, `<<NAME_REVIEWER_MECHANICAL>>`, `<<NAME_REVIEWER_DEPLOY>>`, `<<NAME_ARCHITECT>>`, `<<NAME_ARCHITECT_DEEP>>`, `<<NAME_CI_WATCHER>>` | the agent name chosen for each role | the role -> name map you wrote to `.claude/agents/roles.json` (default: the role itself, e.g. `implementer`). The templates cross-reference each other, so a marker for a role you dropped may still appear in another agent's body: replace it with the name of the agent that takes that work, or rephrase the sentence. The `explore` role has no marker: its name is always `Explore` |
 | `<<ARCHITECT_MODEL>>` | the architect's model | the strongest reasoning model the user's plan offers (e.g. `opus`, or a newer top model alias). Ask only if unsure which aliases the plan has; `opus` is always a safe answer |
 
 ## The project facts
@@ -27,6 +27,7 @@ row allows. Never invent a command or path.
 | `<<SIMPLE_PATHS>>` | markdown bullets ending in `;`: paths the simple implementer may change, each with what is in and out; leave out docs/READMEs/fixtures, which the template already allows | see "The simple list" below |
 | `<<SIMPLE_SUMMARY>>` | short phrase for the description | "landing pages, styles and UI copy" |
 | `<<STAKES>>` | one or two sentences: the worst realistic outcome of a bad change on a risk path | the product's purpose; e.g. "a user's data readable by another tenant, or a payment captured twice." Ask the user if the product's purpose is unclear |
+| `<<SEARCH_SKIP>>` | the `Explore` locator's skip list beyond the generic one: the project's own duplicate or generated trees, as a short list of paths with what each is | session worktrees kept inside the checkout (`.claude/worktrees/`), built documentation sites, vendored copies of the project's own code, virtualenvs, caches, archived code nothing runs ("search it only when asked to"); `git ls-files`/`.gitignore` and a `Glob` for duplicated file names show them. With none, write "none beyond the list above" |
 | `<<STAKES_SHORT>>` | the same in a few words | "a permission, a payment, a data mask" |
 | `<<PROBE_ENTRY>>` | where a safety claim is tested from outside | the HTTP API (route + how to start the app locally), the CLI, the public function the request handler calls |
 | `<<DEPLOY_SUMMARY>>` | short phrase for the description | "workflows, infra scripts, compose, env/secrets, migrations" |

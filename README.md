@@ -41,9 +41,22 @@ Run the skill in a repository and it:
 | `architect` | the strongest reasoning model your plan offers / high | read-only | design options and trade-offs; recommends, never implements |
 | `architect-deep` | same as `architect` / xhigh | read-only | optional: GO/NO-GO reviews around irreversible steps |
 | `ci-watcher` | haiku / low | Bash only | waits for one CI run and reports the failed steps |
+| `explore` (always `Explore`) | haiku / low | Read, Glob, Grep | code search: returns `path:line-range` locations with one-line notes, not files; replaces the built-in `Explore` |
 
 Agents the project cannot use are dropped, not filled with fiction (no deploy path -> no
 `reviewer-deploy`).
+
+### `Explore` replaces the built-in
+
+Claude Code's built-in `Explore` runs on a model the caller does not pin, so code search -
+a large share of all subagent calls - runs on whatever the session runs on, and tends to
+bring whole files back into the caller's context. A project agent with the built-in's
+exact name replaces it. This one is pinned to Haiku at low effort, may only use Read, Glob
+and Grep, reads line ranges instead of whole files, skips vendored, built and duplicated
+trees, and returns only `path:line-range` locations, at most five relationship bullets and
+open questions. Every `Explore` call, the default ones included, then runs on Haiku. Its
+result is a locator, not proof: a review that must prove a safety claim reads the code
+itself. Without Haiku on the plan, it runs on `sonnet` at the same effort.
 
 ### Your own names
 
@@ -62,11 +75,13 @@ section and the guard. For example:
   "architect": "architekt",
   "architect-deep": "architekt-przeglad",
   "ci-watcher": "obserwator-ci",
+  "explore": "Explore",
   "architecture_model": null
 }
 ```
 
-`null` marks a role dropped on purpose. `architecture_model` names a model reserved for
+`null` marks a role dropped on purpose. `explore` is the one role whose name is fixed:
+it must be `Explore` (or `null`), or it no longer replaces the built-in. `architecture_model` names a model reserved for
 the architects (set it when the architect runs on a model above the implementers', and
 the guard fails if an implementer is moved onto it).
 
@@ -106,7 +121,7 @@ claude: (reads CI, Makefile, src/, deploy/)
           simple: web/landing/, web/styles/, UI copy in web/components/ (no stores, no API calls)
         Names: keep the English role names (implementer, reviewer-security, ...) or use your own?
 you:    Fine, keep them; drop the deep architect.
-claude: Wrote 7 agents and roles.json, appended "Working with Claude Code" to CLAUDE.md,
+claude: Wrote 8 agents and roles.json, appended "Working with Claude Code" to CLAUDE.md,
         added tools/claude/check_agents.py and tests/test_claude_agents.py.
         Checker: OK. Restart the session (or open /agents) to see them.
 ```
@@ -125,6 +140,8 @@ an agent never silences a check. It fails when:
 
 - an agent does not pin `model` and `effort`, or its `name:` differs from its file;
 - a read-only role lists no tools (= all tools) or lists Edit/Write/NotebookEdit;
+- the `explore` role is not named `Explore`, or lists a tool beyond Read, Glob and Grep
+  (a role map written before 1.1.0, without `explore`, still passes);
 - an implementer runs on the `architecture_model`, or does not require its `Agent: <name>`
   commit trailer (the trailer is how rework is counted per tier);
 - the simple implementer stops naming any of the risk markers;

@@ -1,8 +1,9 @@
-"""The project agents keep their pinned models, read-only reviewers and risk list.
+"""The project agents keep their pinned models, read-only reviewers, risk list and locator.
 
 Runs `tools/claude/check_agents.py` (copied from the `project-agents` skill) over
 `.claude/agents/`, finding each agent by its role through `.claude/agents/roles.json`, so
-renaming an agent changes nothing about what is checked. Set `RISK_MARKERS` to 3-6
+renaming an agent changes nothing about what is checked (the code locator alone keeps
+its name, `Explore`, the built-in agent it replaces). Set `RISK_MARKERS` to 3-6
 distinctive entries of the risk list in the simple implementer's file: if that agent stops
 naming them, it could implement on a risk path without anyone noticing.
 """
