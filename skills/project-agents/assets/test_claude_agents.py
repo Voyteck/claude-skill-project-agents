@@ -1,4 +1,5 @@
-"""The project agents keep their pinned models, read-only reviewers, risk list and locator.
+"""The project agents keep their pinned models, read-only reviewers, risk list, locator and
+Haiku ops roles.
 
 Runs `tools/claude/check_agents.py` (copied from the `project-agents` skill) over
 `.claude/agents/`, finding each agent by its role through `.claude/agents/roles.json`, so

@@ -42,9 +42,26 @@ Run the skill in a repository and it:
 | `architect-deep` | same as `architect` / xhigh | read-only | optional: GO/NO-GO reviews around irreversible steps |
 | `ci-watcher` | haiku / low | Bash only | waits for one CI run and reports the failed steps |
 | `explore` (always `Explore`) | haiku / low | Read, Glob, Grep | code search: returns `path:line-range` locations with one-line notes, not files; replaces the built-in `Explore` |
+| `operator` | haiku / low | Bash, Read | ops: follows or dispatches the deploy workflow (production only with the owner's go quoted in the brief), watches it, health-checks, reads server logs; at most 15 lines back with the key error lines verbatim; never changes a server, never prints secrets |
 
 Agents the project cannot use are dropped, not filled with fiction (no deploy path -> no
-`reviewer-deploy`).
+`reviewer-deploy`; no deploy path and no servers -> no `operator`).
+
+### Ops run on Haiku, never in the main session
+
+Deploy and CI steps done inside long main sessions - `gh run watch`/`view`/`list`, `ssh`
+log reads, deploy steps - were about 23 % of one owner's whole subscription usage over
+June-November 2026, and up to 65 % of a single repository's: each step re-reads a main
+session's context of 100k+ tokens to learn a few lines. "`gh run watch` costs no Actions
+minutes" was read as "costs nothing"; it still costs the caller's tokens. The `operator`
+does that work on Haiku with a fresh context: it follows or dispatches the project's
+deploy workflow (production only when the brief quotes the owner's go on an
+`Owner go: "..."` line), watches the run with a 60 s refresh, health-checks the site,
+reads `journalctl` / `docker logs` / hosting logs cut at the source, and returns at most
+15 lines with the key error lines verbatim and secrets masked. It never fixes, restarts
+or retries anything. The CLAUDE.md section routes deploys, CI watching and server log
+reads to it and to `ci-watcher`; the main session diagnoses on the summary and reads a
+server itself only when the summary is not enough.
 
 ### `Explore` replaces the built-in
 
@@ -76,6 +93,7 @@ section and the guard. For example:
   "architect-deep": "architekt-przeglad",
   "ci-watcher": "obserwator-ci",
   "explore": "Explore",
+  "operator": "operator-wdrozen",
   "architecture_model": null
 }
 ```
@@ -121,7 +139,7 @@ claude: (reads CI, Makefile, src/, deploy/)
           simple: web/landing/, web/styles/, UI copy in web/components/ (no stores, no API calls)
         Names: keep the English role names (implementer, reviewer-security, ...) or use your own?
 you:    Fine, keep them; drop the deep architect.
-claude: Wrote 8 agents and roles.json, appended "Working with Claude Code" to CLAUDE.md,
+claude: Wrote 9 agents and roles.json, appended "Working with Claude Code" to CLAUDE.md,
         added tools/claude/check_agents.py and tests/test_claude_agents.py.
         Checker: OK. Restart the session (or open /agents) to see them.
 ```
@@ -142,6 +160,10 @@ an agent never silences a check. It fails when:
 - a read-only role lists no tools (= all tools) or lists Edit/Write/NotebookEdit;
 - the `explore` role is not named `Explore`, or lists a tool beyond Read, Glob and Grep
   (a role map written before 1.1.0, without `explore`, still passes);
+- a Haiku-tier role (`ci-watcher`, `Explore`, `operator`) runs on a model that is neither
+  haiku nor sonnet;
+- the `operator` lists a tool beyond Bash, Read, Grep and Glob, or lost its `Owner go:`
+  production gate (a role map written before 1.2.0, without `operator`, still passes);
 - an implementer runs on the `architecture_model`, or does not require its `Agent: <name>`
   commit trailer (the trailer is how rework is counted per tier);
 - the simple implementer stops naming any of the risk markers;
