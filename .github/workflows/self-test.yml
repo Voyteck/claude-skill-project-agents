@@ -10,9 +10,11 @@ permissions:
 
 jobs:
   self-test:
-    runs-on: ubuntu-latest
+    # ubuntu-latest (26.04) has no Python 3.9 build for setup-python; 24.04 has both.
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     strategy:
+      fail-fast: false
       matrix:
         python: ["3.9", "3.13"]
     steps:
