@@ -5,7 +5,7 @@ from a role map, the deep architect assembled from its head plus the architect's
 then runs `scripts/check_agents.py` on the result and expects `OK`. It also expects the
 guard to FAIL on the raw templates and on a filled set that has lost a property the
 guard exists for, so a guard that stopped checking cannot pass here. A role map written
-before the `explore` role existed must still pass.
+before the `explore` and `operator` roles existed must still pass.
 
     python3 tests/smoke_test.py
 """
@@ -35,6 +35,7 @@ ROLES = {
     "architect-deep": "architect-deep",
     "ci-watcher": "ci-watcher",
     "explore": "Explore",
+    "operator": "operator-wdrozen",
     "architecture_model": "fable",
 }
 VALUES = {
@@ -129,13 +130,49 @@ def main() -> int:
             failures.append("an explore role not named Explore should fail the guard")
         renamed.unlink()
 
-        # A role map from before the explore role, with no Explore.md, still passes.
+        # The operator: a cheap model, no tool beyond Bash/Read/Grep/Glob, a production gate.
+        # (Explore.md is gone by now, so the map drops it; the base must pass, or the
+        # cases below would fail for the wrong reason.)
         (agents / "roles.json").write_text(
             json.dumps({k: v for k, v in ROLES.items() if k != "explore"})
         )
+        base = _check(agents)
+        if base.returncode != 0:
+            failures.append(f"the filled set without Explore should pass:\n{base.stdout}")
+        operator = agents / f"{ROLES['operator']}.md"
+        original = operator.read_text()
+        broken = {
+            "an operator on opus": re.sub(r"^model: .*$", "model: opus", original, flags=re.M),
+            "an operator with WebFetch": re.sub(
+                r"^tools: .*$", "tools: Bash, Read, WebFetch", original, flags=re.M
+            ),
+            "an operator with Write": re.sub(
+                r"^tools: .*$", "tools: Bash, Read, Write", original, flags=re.M
+            ),
+            "an operator without its production gate": original.replace("Owner go:", "Go:"),
+        }
+        for case, text in broken.items():
+            operator.write_text(text)
+            if _check(agents).returncode == 0:
+                failures.append(f"{case} should fail the guard")
+        operator.write_text(original)
+        watcher = agents / "ci-watcher.md"
+        original = watcher.read_text()
+        watcher.write_text(re.sub(r"^model: .*$", "model: opus", original, flags=re.M))
+        if _check(agents).returncode == 0:
+            failures.append("a CI watcher on opus should fail the guard")
+        watcher.write_text(original)
+
+        # A role map from before the explore and operator roles, with neither file, passes.
+        operator.unlink()
+        (agents / "roles.json").write_text(
+            json.dumps({k: v for k, v in ROLES.items() if k not in ("explore", "operator")})
+        )
         before = _check(agents)
         if before.returncode != 0:
-            failures.append(f"a role map without explore should still pass:\n{before.stdout}")
+            failures.append(
+                f"a role map without explore and operator should still pass:\n{before.stdout}"
+            )
 
     with tempfile.TemporaryDirectory() as tmp:
         raw = Path(tmp)
@@ -149,8 +186,10 @@ def main() -> int:
         print(f"FAIL: {failure}")
     if not failures:
         print(
-            "smoke test OK: filled set and a pre-explore role map pass; raw templates, "
-            "a writing reviewer and a renamed or shell-wielding Explore fail"
+            "smoke test OK: filled set and a pre-1.1.0 role map pass; raw templates, "
+            "a writing reviewer, a renamed or shell-wielding Explore, an opus CI watcher "
+            "and an operator on opus, with extra or writing tools, or without its "
+            "production gate fail"
         )
     return 1 if failures else 0
 

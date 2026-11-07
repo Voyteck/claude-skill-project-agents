@@ -1,6 +1,6 @@
 ---
 name: project-agents
-description: Sets up a tiered team of Claude Code subagents in a project's `.claude/agents/` - an Opus implementer for risky paths, a Sonnet implementer bound to an explicit path list, read-only security, mechanical and deploy reviewers, an architect on the strongest reasoning model, a Haiku CI watcher and a Haiku code locator that replaces the built-in `Explore` - each pinning its model and effort, fitted to the project's real commands, risk paths and deploy path, plus the matching "Working with Claude Code" rules in CLAUDE.md and a guard script that keeps the agent files honest. Use it whenever someone starts or onboards a repository for Claude Code, asks for agents, subagents, reviewers, a model-per-task split or lower token cost, notices subagents running on the wrong model, or wants an existing `.claude/agents/` set audited or brought in line - even if they never say "skill". Polish triggers too - "skonfiguruj agentów", "dodaj agentów do projektu", "podział modeli na zadania".
+description: Sets up a tiered team of Claude Code subagents in a project's `.claude/agents/` - Opus implementer for risky paths, Sonnet implementer bound to a path list, read-only security, mechanical and deploy reviewers, an architect on the strongest model, and on Haiku a CI watcher, an operator (deploys, health checks, server logs off the main session) and a code locator replacing the built-in `Explore` - each pinning model and effort, fitted to the project's real commands, risk paths and deploy path, plus "Working with Claude Code" rules in CLAUDE.md and a guard script. Use it whenever someone starts or onboards a repository for Claude Code, asks for agents, subagents, reviewers, a model-per-task split or lower token cost, sees subagents or deploys running on the wrong model, or wants an existing `.claude/agents/` set audited - even if they never say "skill". Polish triggers too - "skonfiguruj agentów", "dodaj agentów do projektu", "podział modeli na zadania".
 ---
 
 # Project agents
@@ -25,13 +25,23 @@ the careful tier, and reviewers that cannot touch what they review.
 | `architect-deep` | same model as `architect` / xhigh | read-only | OPTIONAL: the architect at more effort, for GO/NO-GO reviews around irreversible steps |
 | `ci-watcher` | haiku / low | Bash only | waits on one CI run and reports the failed steps |
 | `explore` (always `Explore`) | haiku / low | Read, Glob, Grep | code search: returns `path:line-range` locations, not files; replaces the built-in `Explore` |
+| `operator` | haiku / low | Bash, Read | ops: follows or dispatches the deploy workflow (production only with the owner's go quoted in the brief), watches it, health-checks, reads server logs; <=15 lines back, key error lines verbatim; never changes a server, never prints secrets |
 
 "Strongest reasoning model" means the strongest one the user's plan offers (e.g. `opus`,
 or a newer top model alias). Templates live in `assets/agents/`, one per role.
 
 Drop an agent the project cannot use rather than filling it with fiction: no deploy path
 -> no `reviewer-deploy`; no GitHub Actions -> adapt `ci-watcher` to the CI the project
-has, or drop it. Say what you dropped and why.
+has, or drop it; no deploy path AND no servers or hosting logs to read -> no `operator`
+(a deploy with no servers keeps it for watching and health checks; servers with no
+deploy workflow keep it for log reads). Say what you dropped and why.
+
+**Ops never run in the main session.** Deploy and CI steps done inside long main
+sessions were about a quarter of one owner's whole subscription usage: each `gh run`
+poll, `ssh` read or deploy step re-reads a context of 100k+ tokens to learn a few lines.
+`operator` and `ci-watcher` do that work on Haiku with a fresh context and hand back a
+summary the main session diagnoses from; the CLAUDE.md section makes that the rule. A
+`gh run watch` "costs no Actions minutes" - it still costs the caller's tokens.
 
 **`Explore` overrides a built-in on purpose.** Claude Code's built-in `Explore` inherits a
 model unless the caller passes one, so code search - a large share of all subagent calls -
@@ -47,7 +57,7 @@ the code itself.
 The default names are the roles themselves, in English. The user may want their own (for
 example, one owner names them in Polish: `programista`, `programista-prosty`,
 `przeglad-bezpieczenstwa`, `przeglad-mechaniczny`, `przeglad-wdrozenia`, `architekt`,
-`architekt-przeglad`, `obserwator-ci`). The `explore` role is the exception: it is always
+`architekt-przeglad`, `obserwator-ci`, `operator-wdrozen`). The `explore` role is the exception: it is always
 `Explore`, the built-in's name, or it stops replacing the built-in.
 
 - **Ask once**, in the same message as the risk and simple lists (step 2): "The agents get
@@ -91,7 +101,7 @@ Copy each template from `assets/agents/` to `.claude/agents/<name>.md` and repla
 markers. Write in the project's technical language (English unless the project says
 otherwise). Keep the stance lines verbatim - "You never edit files, commit, push, merge or
 deploy", the `Agent: <name>` trailer, "never merge the default branch to keep it fresh",
-"one full check per PR" - they are the part that was learned the hard way.
+"one full check per PR", the operator's `Owner go:` production gate - they are the part that was learned the hard way.
 
 If the project has its own scoped docs (subdirectory `CLAUDE.md` files, a CONTRIBUTING, a
 deploy doc), point the agents at them by path instead of copying their content in; an
@@ -132,9 +142,13 @@ python <this-skill>/scripts/check_agents.py <repo>/.claude/agents --risk-marker 
 It reads `<repo>/.claude/agents/roles.json` (or `--roles <file>`), and fails when:
 
 - an agent does not pin `model` and `effort`, or its `name:` differs from its file name;
-- a read-only role (reviewers, architects, CI watcher, `Explore`) lists no tools or lists
-  Edit/Write/NotebookEdit;
+- a read-only role (reviewers, architects, CI watcher, `Explore`, operator) lists no tools
+  or lists Edit/Write/NotebookEdit;
 - the `explore` role is not named `Explore`, or lists a tool beyond Read, Glob and Grep;
+- a Haiku-tier role (CI watcher, `Explore`, operator) runs on a model that is neither
+  haiku nor sonnet;
+- the operator lists a tool beyond Bash, Read, Grep and Glob, or lost its production gate
+  (the `Owner go:` line);
 - an implementer role runs on the `architecture_model` or does not require its
   `Agent: <name>` trailer;
 - the simple implementer does not contain each risk marker;
@@ -159,8 +173,8 @@ Do not commit unless asked; if asked, stage explicit paths only.
 ## Adapting the models
 
 The tiers are a policy, not a law. Use model aliases the user's plan offers and substitute
-when one is missing (no Haiku -> `sonnet` for the CI watcher and for `Explore`, at the
-same `low` effort), saying so in the report.
+when one is missing (no Haiku -> `sonnet` for the CI watcher, `Explore` and the operator,
+at the same `low` effort), saying so in the report.
 
 - **The architect** runs on the strongest reasoning model available. If that is a model
   above the implementers' (a newer top alias), set `architecture_model` in `roles.json` to
@@ -173,4 +187,5 @@ same `low` effort), saying so in the report.
   little.
 
 Keep the invariants: every agent pins `model` and `effort`; implementers never run on the
-architecture model; read-only roles list their tools and none of them writes.
+architecture model; read-only roles list their tools and none of them writes; the
+Haiku-tier roles stay on a cheap model.

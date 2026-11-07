@@ -19,6 +19,12 @@ Each check answers a failure seen in practice:
 * the code locator keeps the name `Explore` and only Read, Glob and Grep - under another
   name it no longer replaces the built-in `Explore`, whose calls then run on the caller's
   model again, and a locator with a shell can change the tree;
+* the Haiku-tier roles (CI watcher, code locator, operator) run on a cheap model - ops and
+  CI watching done on the top model, each poll re-reading a large context, was about a
+  quarter of all usage in one measurement;
+* the operator lists only Bash, Read, Grep and Glob and keeps its production gate (the
+  `Owner go:` line) - an ops agent that can edit, or that deploys production without the
+  owner's words, is the incident it exists to prevent;
 * the deep architect variant keeps its base's tools, model and body - it differs only in
   effort and an opening paragraph;
 * no `<<MARKER>>` from the templates is left unfilled.
@@ -35,6 +41,7 @@ Each check answers a failure seen in practice:
       "architect-deep": null,
       "ci-watcher": "ci-watcher",
       "explore": "Explore",
+      "operator": "operator",
       "architecture_model": null
     }
 
@@ -42,7 +49,7 @@ Each check answers a failure seen in practice:
 leave it `null` when the architect runs on the same model as the implementer (then the
 read-only tool list is what keeps the architect from implementing). `explore` may only
 be `Explore` or `null`; a map without it (written before the role existed) leaves it
-unchecked.
+unchecked. The same holds for `operator`: a map written before 1.2.0 still passes.
 
 Usage:
     python check_agents.py [AGENTS_DIR] [--roles ROLES_JSON] [--risk-marker TEXT ...]
@@ -70,6 +77,7 @@ ROLES = (
     "architect-deep",
     "ci-watcher",
     "explore",
+    "operator",
 )
 #: Roles that may never write to the tree.
 READ_ONLY_ROLES = (
@@ -80,6 +88,7 @@ READ_ONLY_ROLES = (
     "architect-deep",
     "ci-watcher",
     "explore",
+    "operator",
 )
 #: Roles that implement: signed commits, never on the architecture model.
 IMPLEMENTER_ROLES = ("implementer", "implementer-simple")
@@ -89,14 +98,22 @@ SIMPLE_IMPLEMENTER_ROLE = "implementer-simple"
 #: paragraph only.
 EFFORT_VARIANTS = {"architect-deep": "architect"}
 #: Roles whose file may be absent when `roles.json` does not name them explicitly;
-#: `explore` is one so that a role map written before it existed still passes.
-OPTIONAL_ROLES = ("architect-deep", "explore")
+#: `explore` and `operator` are, so that a role map written before them still passes.
+OPTIONAL_ROLES = ("architect-deep", "explore", "operator")
 #: Roles whose agent name is fixed: the code locator overrides the built-in agent of that
 #: name, which it does only under the built-in's exact name.
 FIXED_NAMES = {"explore": "Explore"}
 #: The code locator's role and the only tools it may list.
 LOCATOR_ROLE = "explore"
 LOCATOR_TOOLS = frozenset({"Read", "Glob", "Grep"})
+#: The ops role, the only tools it may list, and the line its production gate needs.
+OPERATOR_ROLE = "operator"
+OPERATOR_TOOLS = frozenset({"Bash", "Read", "Glob", "Grep"})
+OPERATOR_GATE = "Owner go:"
+#: Roles whose work is cheap by design, and the words one of which their model must hold
+#: (`haiku`, or `sonnet` where the plan has no Haiku; full model ids match too).
+CHEAP_ROLES = ("ci-watcher", "explore", "operator")
+CHEAP_MODEL_WORDS = ("haiku", "sonnet")
 #: The `roles.json` key that is a setting, not a role.
 ARCHITECTURE_MODEL_KEY = "architecture_model"
 ROLES_FILE = "roles.json"
@@ -271,6 +288,25 @@ def _check_role(
             f"{label}: the code locator may list only {sorted(LOCATOR_TOOLS)}, "
             f"not {sorted(tool_set - LOCATOR_TOOLS)}"
         )
+
+    if role in CHEAP_ROLES:
+        model = frontmatter(path).get("model", "")
+        if not any(word in model.lower() for word in CHEAP_MODEL_WORDS):
+            problems.append(
+                f"{label}: a Haiku-tier role must run on haiku (or sonnet without Haiku), "
+                f"not `{model}`"
+            )
+
+    if role == OPERATOR_ROLE:
+        if tool_set - OPERATOR_TOOLS:
+            problems.append(
+                f"{label}: the operator may list only {sorted(OPERATOR_TOOLS)}, "
+                f"not {sorted(tool_set - OPERATOR_TOOLS)}"
+            )
+        if OPERATOR_GATE not in text:
+            problems.append(
+                f"{label}: the production gate (`{OPERATOR_GATE}` line in the brief) is missing"
+            )
 
     if role in IMPLEMENTER_ROLES:
         model = frontmatter(path).get("model")

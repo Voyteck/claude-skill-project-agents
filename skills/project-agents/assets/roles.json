@@ -8,5 +8,6 @@
   "architect-deep": null,
   "ci-watcher": "ci-watcher",
   "explore": "Explore",
+  "operator": "operator",
   "architecture_model": null
 }
